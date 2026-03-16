@@ -23,22 +23,20 @@ RUN useradd -m -s /bin/bash -G sudo dev && \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# Pre-create nix.conf with no build-users-group (avoids nixbld group requirement)
+# Install Nix via Determinate Systems installer (handles containers/root properly)
+RUN curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | \
+    sh -s -- install linux --no-confirm --init none
+
+# Enable flakes and disable sandbox
 RUN mkdir -p /etc/nix && \
-    echo 'build-users-group =' > /etc/nix/nix.conf && \
     echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf && \
     echo 'sandbox = false' >> /etc/nix/nix.conf
 
-# Install Nix (single-user, no-daemon)
-RUN mkdir -p /nix && \
-    curl -L https://nixos.org/nix/install | sh -s -- --no-daemon
-
-# Add Nix to PATH for all users
+# Add Nix to PATH
 ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:${PATH}"
 
 # Make Nix available to dev user
-RUN echo 'source /root/.nix-profile/etc/profile.d/nix.sh 2>/dev/null || true' >> /home/dev/.bashrc && \
-    echo 'export PATH=/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH' >> /home/dev/.bashrc
+RUN echo 'export PATH=/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH' >> /home/dev/.bashrc
 
 # Configure sshd
 RUN mkdir -p /var/run/sshd && \
