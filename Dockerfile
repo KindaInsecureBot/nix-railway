@@ -23,24 +23,22 @@ RUN useradd -m -s /bin/bash -G sudo dev && \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# Create nixbld group and users (required by Nix installer since 2.34+)
-RUN groupadd -g 30000 nixbld && \
-    for i in $(seq 1 10); do \
-      useradd -u $((30000 + i)) -g nixbld -G nixbld -M -d /var/empty -s /sbin/nologin "nixbld$i"; \
-    done
-
-# Install Nix (single-user mode, runs as root — simpler in containers)
-RUN curl -L https://nixos.org/nix/install | sh -s -- --no-daemon
-
-# Add Nix to PATH for all users and enable flakes
-ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:${PATH}"
-RUN mkdir -p /etc/nix && echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf && \
+# Pre-create nix.conf with no build-users-group (avoids nixbld group requirement)
+RUN mkdir -p /etc/nix && \
+    echo 'build-users-group =' > /etc/nix/nix.conf && \
+    echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf && \
     echo 'sandbox = false' >> /etc/nix/nix.conf
 
-# Make Nix available to dev user too
-RUN echo '. /root/.nix-profile/etc/profile.d/nix.sh' >> /home/dev/.bashrc && \
-    echo 'export PATH=/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH' >> /home/dev/.bashrc && \
-    echo 'export NIX_PATH=nixpkgs=/root/.nix-defexpr/channels/nixpkgs' >> /home/dev/.bashrc
+# Install Nix (single-user, no-daemon)
+RUN mkdir -p /nix && \
+    curl -L https://nixos.org/nix/install | sh -s -- --no-daemon
+
+# Add Nix to PATH for all users
+ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:${PATH}"
+
+# Make Nix available to dev user
+RUN echo 'source /root/.nix-profile/etc/profile.d/nix.sh 2>/dev/null || true' >> /home/dev/.bashrc && \
+    echo 'export PATH=/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH' >> /home/dev/.bashrc
 
 # Configure sshd
 RUN mkdir -p /var/run/sshd && \
@@ -51,15 +49,12 @@ RUN mkdir -p /var/run/sshd && \
     echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config && \
     echo 'ChallengeResponseAuthentication no' >> /etc/ssh/sshd_config
 
-# SSH host keys (generated at build time; runtime entrypoint regenerates if missing)
+# SSH host keys
 RUN ssh-keygen -A
 
 # Entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-# /nix will be a Railway volume — create the mount point
-RUN mkdir -p /nix
 
 EXPOSE 22
 
