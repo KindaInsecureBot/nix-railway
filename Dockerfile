@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
 
 # Create dev user with sudo access
 RUN useradd -m -s /bin/bash -G sudo dev && \
+    passwd -d dev && \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
