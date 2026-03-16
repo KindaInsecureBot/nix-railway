@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Unlock the dev account (handles images built without passwd -d)
+passwd -d dev 2>/dev/null || true
+
 # Set up SSH authorized keys from environment variable
 if [ -n "$SSH_PUBLIC_KEY" ]; then
     mkdir -p /home/dev/.ssh
